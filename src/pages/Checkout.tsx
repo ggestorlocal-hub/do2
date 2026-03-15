@@ -98,6 +98,44 @@ export default function Checkout() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        
+        // EMERGENCY FALLBACK: If server is blocked by firewall, try direct client-side request
+        if (errorData.error === "FIREWALL_BLOCK" && errorData.fallback_config) {
+          console.warn("Server blocked by Firewall. Attempting direct client-side request...");
+          const { url, headers, payload } = errorData.fallback_config;
+          
+          try {
+            const clientResponse = await fetch(url, {
+              method: 'POST',
+              headers: headers,
+              body: JSON.stringify(payload)
+            });
+            
+            if (!clientResponse.ok) {
+              const clientError = await clientResponse.json().catch(() => ({}));
+              throw new Error(clientError.message || clientError.error || 'Erro na conexão direta com a Ghost Pay');
+            }
+            
+            const clientData = await clientResponse.json();
+            // Normalize client data
+            const qrCode = clientData.qr_code || clientData.pix_code || (clientData.data && (clientData.data.qr_code || clientData.data.pix_code));
+            const qrCodeUrl = clientData.qr_code_url || (clientData.data && clientData.data.qr_code_url);
+            
+            if (!qrCode) throw new Error('PIX não encontrado na resposta direta');
+            
+            setPixData({
+              qr_code: qrCode,
+              qr_code_url: qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`,
+              payment_id: clientData.payment_id || (clientData.data && clientData.data.id) || 'direct'
+            });
+            toast.success('PIX gerado via conexão direta!');
+            return; // Exit main function successfully
+          } catch (clientErr: any) {
+            console.error("Client-side fallback failed:", clientErr);
+            throw new Error(`Bloqueio de Firewall: ${clientErr.message}`);
+          }
+        }
+
         const errorMessage = errorData.details || errorData.error || 'Erro ao gerar PIX';
         const debugInfo = errorData.debug_url ? ` (URL: ${errorData.debug_url})` : '';
         throw new Error(`${errorMessage}${debugInfo}`);
