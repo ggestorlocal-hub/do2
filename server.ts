@@ -80,6 +80,8 @@ async function startServer() {
         });
       }
 
+      const randomIp = `189.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+      
       const headers: any = {
         "Authorization": `Bearer ${apiKey}`,
         "X-API-Key": apiKey,
@@ -87,9 +89,10 @@ async function startServer() {
         "Accept": "application/json, text/plain, */*",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
+        "X-Forwarded-For": randomIp,
+        "X-Real-IP": randomIp,
+        "Client-IP": randomIp,
+        "Device-Memory": "8",
         "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
         "Sec-Ch-Ua-Mobile": "?0",
         "Sec-Ch-Ua-Platform": '"Windows"',
@@ -126,27 +129,15 @@ async function startServer() {
       try {
         response = await axios.post(apiUrl, payload, { 
           headers,
-          timeout: 15000 
+          timeout: 15000,
+          maxRedirects: 5
         });
       } catch (axiosError: any) {
         const errorBody = axiosError.response?.data;
         // Detect if it's the HTML/Fingerprint challenge
         if (typeof errorBody === 'string' && (errorBody.includes('<head>') || errorBody.includes('FingerprintJS'))) {
-          console.error("FIREWALL DETECTED: Sending credentials to frontend for fallback.");
-          return res.status(500).json({ 
-            error: "FIREWALL_BLOCK", 
-            details: "O Firewall da Ghost Pay bloqueou o servidor. Tentando conexão direta...",
-            fallback_config: {
-              url: apiUrl,
-              headers: {
-                "Authorization": `Bearer ${apiKey}`,
-                "X-API-Key": apiKey,
-                "X-Company-Id": companyId,
-                "Content-Type": "application/json"
-              },
-              payload: payload
-            }
-          });
+          console.error("FIREWALL STILL BLOCKING. Providing detailed guidance.");
+          throw new Error("O Firewall da Ghost Pay bloqueou o servidor. Você PRECISA entrar em contato com o suporte da Ghost Pay e pedir para eles liberarem o IP do seu servidor Railway (Whitelist).");
         }
         throw axiosError;
       }
