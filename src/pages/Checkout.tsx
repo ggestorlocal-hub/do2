@@ -97,7 +97,8 @@ export default function Checkout() {
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao gerar PIX');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.details || errorData.error || 'Erro ao gerar PIX');
       }
 
       const data = await response.json();

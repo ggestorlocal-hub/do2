@@ -29,6 +29,9 @@ async function startServer() {
       const apiKey = process.env.GHOST_PAY_API_KEY;
       const apiUrl = process.env.GHOST_PAY_API_URL || "https://api.ghostpay.com.br/v1/pix";
 
+      console.log("API Key present:", !!apiKey);
+      console.log("API URL:", apiUrl);
+
       if (!apiKey) {
         console.warn("GHOST_PAY_API_KEY is missing - using mock mode");
         return res.json({
@@ -56,10 +59,11 @@ async function startServer() {
 
       res.json(response.data);
     } catch (error: any) {
-      console.error("Ghost Pay API Error:", error.response?.data || error.message);
+      const errorDetail = error.response?.data || error.message;
+      console.error("Ghost Pay API Error Detail:", JSON.stringify(errorDetail, null, 2));
       res.status(500).json({ 
         error: "Failed to generate PIX",
-        details: error.response?.data || error.message
+        details: typeof errorDetail === 'object' ? JSON.stringify(errorDetail) : errorDetail
       });
     }
   };
