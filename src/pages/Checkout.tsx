@@ -106,9 +106,12 @@ export default function Checkout() {
       const data = await response.json();
       setPixData(data);
       toast.success('PIX gerado com sucesso!');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Erro ao processar o pagamento. Tente novamente.');
+      const message = error.message || 'Erro ao processar o pagamento. Tente novamente.';
+      toast.error(message, {
+        duration: 8000, // Show longer so user can read debug info
+      });
     } finally {
       setIsLoading(false);
     }

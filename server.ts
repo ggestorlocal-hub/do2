@@ -53,6 +53,12 @@ async function startServer() {
       const companyId = process.env.GHOST_PAY_COMPANY_ID;
       let apiUrl = process.env.GHOST_PAY_API_URL || "https://api.ghostpay.com.br/v1/pix";
       
+      // Safety check: If URL looks like a UUID (has hyphens and no dots), it's probably the Company ID
+      if (apiUrl && apiUrl.includes('-') && !apiUrl.includes('.')) {
+        console.warn("GHOST_PAY_API_URL looks like a Company ID. Forcing default Ghost Pay URL.");
+        apiUrl = "https://api.ghostpay.com.br/v1/pix";
+      }
+
       // Ensure URL has protocol
       if (apiUrl && !apiUrl.startsWith('http')) {
         apiUrl = `https://${apiUrl}`;
@@ -85,15 +91,25 @@ async function startServer() {
         headers["X-Company-Id"] = companyId;
       }
 
-      console.log("Sending request to Ghost Pay...");
-      const response = await axios.post(apiUrl, {
+      const generatedCpf = cpf || generateCPF();
+      const payload = {
         amount: Math.round(Number(amount) * 100),
         name: name || "Doador SOS",
         email: email || "contato@exemplo.com",
-        cpf: cpf || generateCPF(),
+        cpf: generatedCpf,
+        // Adding nested customer object as some Ghost Pay versions require it
+        customer: {
+          name: name || "Doador SOS",
+          email: email || "contato@exemplo.com",
+          document: generatedCpf,
+          cpf: generatedCpf
+        },
         description: "Doação SOS Minas Gerais",
         external_id: "order_" + Date.now()
-      }, { headers });
+      };
+
+      console.log("Sending request to Ghost Pay:", apiUrl);
+      const response = await axios.post(apiUrl, payload, { headers });
 
       console.log("Ghost Pay Raw Response:", JSON.stringify(response.data, null, 2));
 
