@@ -17,8 +17,8 @@ async function startServer() {
   });
 
   // API Route for PIX Generation
-  app.post("/api/generate-pix", async (req, res) => {
-    console.log("POST /api/generate-pix hit", req.body);
+  const pixHandler = async (req: any, res: any) => {
+    console.log(`PIX Request received [${req.method}] to ${req.path}`, req.body);
     try {
       const { amount, name, email, cpf } = req.body;
 
@@ -30,21 +30,18 @@ async function startServer() {
       const apiUrl = process.env.GHOST_PAY_API_URL || "https://api.ghostpay.com.br/v1/pix";
 
       if (!apiKey) {
-        console.error("GHOST_PAY_API_KEY is missing");
-        // For demo purposes, if key is missing, return a mock response
-        // but in production this should be an error.
+        console.warn("GHOST_PAY_API_KEY is missing - using mock mode");
         return res.json({
           success: true,
           mock: true,
-          qr_code: "00020101021226850014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865405" + amount.toFixed(2) + "5802BR5913GhostPay Demo6008BRASILIA62070503***6304E2CA",
-          qr_code_url: "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=mock_pix_payload",
+          qr_code: "00020101021226850014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865405" + Number(amount).toFixed(2) + "5802BR5913GhostPay Demo6008BRASILIA62070503***6304E2CA",
+          qr_code_url: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=00020101021226850014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865405${Number(amount).toFixed(2)}5802BR5913GhostPay Demo6008BRASILIA62070503***6304E2CA`,
           payment_id: "ghost_" + Date.now()
         });
       }
 
-      // Ghost Pay API Call (Adjust based on actual documentation)
       const response = await axios.post(apiUrl, {
-        amount: Math.round(amount * 100), // Many gateways use cents
+        amount: Math.round(amount * 100),
         name,
         email,
         cpf,
@@ -65,7 +62,10 @@ async function startServer() {
         details: error.response?.data || error.message
       });
     }
-  });
+  };
+
+  app.post("/api/generate-pix", pixHandler);
+  app.post("/api/pix/generate", pixHandler); // Fallback for cached frontend
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
