@@ -76,17 +76,20 @@ async function startServer() {
 
       const headers: any = {
         "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+        "X-API-Key": apiKey, // Added for compatibility with some gateway versions
+        "Content-Type": "application/json",
+        "Accept": "application/json"
       };
 
       if (companyId) {
         headers["X-Company-Id"] = companyId;
       }
 
+      console.log("Sending request to Ghost Pay...");
       const response = await axios.post(apiUrl, {
         amount: Math.round(Number(amount) * 100),
-        name,
-        email,
+        name: name || "Doador SOS",
+        email: email || "contato@exemplo.com",
         cpf: cpf || generateCPF(),
         description: "Doação SOS Minas Gerais",
         external_id: "order_" + Date.now()
@@ -94,32 +97,39 @@ async function startServer() {
 
       console.log("Ghost Pay Raw Response:", JSON.stringify(response.data, null, 2));
 
-      // Normalize response fields
       const data = response.data;
-      const normalizedData = {
-        qr_code: data.qr_code || data.pix_code || data.copy_paste || (data.data && (data.data.qr_code || data.data.pix_code)),
-        qr_code_url: data.qr_code_url || data.pix_url || data.qrcode_url || (data.data && (data.data.qr_code_url || data.data.qrcode_url)),
-        payment_id: data.payment_id || data.id || (data.data && data.data.id)
-      };
+      
+      // Extensive normalization to catch any possible field name
+      const qrCode = data.qr_code || data.pix_code || data.copy_paste || data.emv || 
+                     (data.data && (data.data.qr_code || data.data.pix_code || data.data.emv || data.data.qrcode));
+      
+      const qrCodeUrl = data.qr_code_url || data.pix_url || data.qrcode_url || data.url ||
+                        (data.data && (data.data.qr_code_url || data.data.qrcode_url || data.data.url));
 
-      if (!normalizedData.qr_code) {
-        console.error("Could not find PIX code in response:", data);
+      const paymentId = data.payment_id || data.id || data.transaction_id ||
+                        (data.data && (data.data.id || data.data.payment_id));
+
+      if (!qrCode) {
+        console.error("PIX Code not found in response structure:", data);
         return res.status(500).json({ 
-          error: "Response format error", 
-          details: "A API respondeu mas não enviou o código PIX. Verifique os logs.",
-          raw: data
+          error: "API Response Error", 
+          details: "A API respondeu, mas o código PIX não foi encontrado no formato esperado.",
+          raw: data // This will help us see the real error in the browser console
         });
       }
 
-      res.json(normalizedData);
+      res.json({
+        qr_code: qrCode,
+        qr_code_url: qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`,
+        payment_id: paymentId
+      });
     } catch (error: any) {
-      const errorDetail = error.response?.data || error.message;
-      const apiUrl = process.env.GHOST_PAY_API_URL || "https://api.ghostpay.com.br/v1/pix";
-      console.error("Ghost Pay API Error Detail:", JSON.stringify(errorDetail, null, 2));
+      const errorData = error.response?.data || error.message;
+      console.error("Ghost Pay API Error:", JSON.stringify(errorData, null, 2));
       res.status(500).json({ 
-        error: "Failed to generate PIX",
-        details: typeof errorDetail === 'object' ? JSON.stringify(errorDetail) : errorDetail,
-        debug_url: apiUrl
+        error: "Ghost Pay API Failure",
+        details: typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+        raw: errorData
       });
     }
   };
