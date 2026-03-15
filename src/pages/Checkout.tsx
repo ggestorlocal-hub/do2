@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Info, Check } from 'lucide-react';
+import { ChevronLeft, Info, Check, Copy, QrCode, Loader2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -8,6 +8,13 @@ interface UpsellItem {
   name: string;
   price: number;
   image: string;
+}
+
+interface PixResponse {
+  qr_code: string;
+  qr_code_url: string;
+  payment_id: string;
+  mock?: boolean;
 }
 
 const UPSELL_ITEMS: UpsellItem[] = [
@@ -33,9 +40,15 @@ const UPSELL_ITEMS: UpsellItem[] = [
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const [amount, setAmount] = useState<string>('0,00');
+  const [amount, setAmount] = useState<string>('20,00');
   const [selectedUpsells, setSelectedUpsells] = useState<string[]>([]);
   const [isPixSelected, setIsPixSelected] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pixData, setPixData] = useState<PixResponse | null>(null);
+  
+  // User Info
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '');
@@ -51,7 +64,7 @@ export default function Checkout() {
   };
 
   const getNumericAmount = () => {
-    return parseFloat(amount.replace('.', '').replace(',', '.'));
+    return parseFloat(amount.replace(/\./g, '').replace(',', '.'));
   };
 
   const getUpsellTotal = () => {
@@ -62,14 +75,47 @@ export default function Checkout() {
 
   const total = getNumericAmount() + getUpsellTotal();
 
-  const handleContribute = () => {
+  const handleContribute = async () => {
     const numericAmount = getNumericAmount();
     if (numericAmount < 20) {
       toast.error('O valor mínimo da doação é de R$ 20,00');
       return;
     }
-    toast.success('Redirecionando para o pagamento...');
-    // Here you would navigate to the PIX screen or handle payment
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/pix/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: total,
+          name: name || 'Doador Anônimo',
+          email: email || 'contato@exemplo.com',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao gerar PIX');
+      }
+
+      const data = await response.json();
+      setPixData(data);
+      toast.success('PIX gerado com sucesso!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao processar o pagamento. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const copyPixCode = () => {
+    if (pixData?.qr_code) {
+      navigator.clipboard.writeText(pixData.qr_code);
+      toast.success('Código PIX copiado!');
+    }
   };
 
   return (
@@ -110,6 +156,20 @@ export default function Checkout() {
         <p className="text-[#ff4d4d] text-[11px] font-bold mb-6">
           Valor mínimo da doação é de R$ 20,00
         </p>
+
+        {/* User Info (Optional but good for real feel) */}
+        <div className="space-y-4 mb-8">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Seu Nome (Opcional)</label>
+            <input 
+              type="text" 
+              placeholder="Ex: João Silva"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-lg text-sm outline-none focus:border-[#00b67a]"
+            />
+          </div>
+        </div>
 
         {/* Payment Method */}
         <div className="mb-8">
@@ -176,11 +236,81 @@ export default function Checkout() {
         {/* Contribute Button */}
         <button
           onClick={handleContribute}
-          className="w-full bg-[#00b67a] text-white font-bold py-4 rounded-lg text-sm uppercase tracking-wider hover:opacity-90 transition-all shadow-lg shadow-[#00b67a]/20"
+          disabled={isLoading}
+          className="w-full bg-[#00b67a] text-white font-bold py-4 rounded-lg text-sm uppercase tracking-wider hover:opacity-90 transition-all shadow-lg shadow-[#00b67a]/20 flex items-center justify-center gap-2"
         >
-          CONTRIBUIR
+          {isLoading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              PROCESSANDO...
+            </>
+          ) : (
+            'CONTRIBUIR'
+          )}
         </button>
       </main>
+
+      {/* PIX Modal / Overlay */}
+      {pixData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+            <div className="p-8">
+              <div className="flex justify-end mb-2">
+                <button onClick={() => setPixData(null)} className="p-1 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center text-center">
+                <div className="flex items-center gap-2 mb-4">
+                  <Loader2 className="w-5 h-5 text-[#00b67a] animate-spin" />
+                  <span className="text-sm font-medium text-slate-600">Aguardando pagamento...</span>
+                </div>
+
+                <h3 className="text-xl font-bold mb-6">Minas Gerais precisa da sua ajuda</h3>
+                
+                <p className="text-sm font-medium text-slate-700 mb-4">Escaneie o QR Code abaixo:</p>
+
+                <div className="bg-white p-2 rounded-xl mb-6 border-2 border-slate-100 shadow-sm">
+                  <img 
+                    src={pixData.qr_code_url} 
+                    alt="QR Code PIX" 
+                    className="w-56 h-56"
+                  />
+                </div>
+                
+                <p className="text-xs font-medium text-slate-500 mb-2">
+                  Copie e cole o código abaixo em seu banco:
+                </p>
+
+                <div className="w-full mb-6">
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg break-all text-[10px] font-mono text-slate-600 text-left mb-4 max-h-20 overflow-y-auto">
+                    {pixData.qr_code}
+                  </div>
+
+                  <button
+                    onClick={copyPixCode}
+                    className="w-full bg-[#00b67a] text-white font-bold py-4 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-md active:scale-[0.98]"
+                  >
+                    COPIAR CÓDIGO PIX
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                  <Info className="w-3 h-3" />
+                  <span>O pagamento é processado instantaneamente</span>
+                </div>
+              </div>
+            </div>
+            
+            {pixData.mock && (
+              <div className="bg-slate-50 py-1.5 text-center border-t border-slate-100">
+                <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Modo de Demonstração</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Bottom Nav Simulation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex justify-around items-center max-w-md mx-auto">
