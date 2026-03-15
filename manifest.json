@@ -7,9 +7,9 @@
   "theme_color": "#22c55e",
   "icons": [
     {
-      "src": "https://www.vakinha.com.br/assets/logo-vakinha-f90e9e6e.svg",
+      "src": "https://cdn-icons-png.flaticon.com/512/3100/3100566.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png"
     }
   ]
 }
