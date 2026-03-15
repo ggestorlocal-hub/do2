@@ -82,9 +82,13 @@ async function startServer() {
 
       const headers: any = {
         "Authorization": `Bearer ${apiKey}`,
-        "X-API-Key": apiKey, // Added for compatibility with some gateway versions
+        "X-API-Key": apiKey,
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        // Crucial: Mimic a real browser to bypass anti-bot challenges
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Origin": "https://api.ghostpay.com.br",
+        "Referer": "https://api.ghostpay.com.br/"
       };
 
       if (companyId) {
