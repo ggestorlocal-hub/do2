@@ -84,7 +84,7 @@ export default function Checkout() {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/pix/generate', {
+      const response = await fetch('/api/generate-pix', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

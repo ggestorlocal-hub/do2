@@ -11,9 +11,14 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+  
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", message: "Server is running" });
+  });
 
   // API Route for PIX Generation
-  app.post("/api/pix/generate", async (req, res) => {
+  app.post("/api/generate-pix", async (req, res) => {
+    console.log("POST /api/generate-pix hit", req.body);
     try {
       const { amount, name, email, cpf } = req.body;
 
