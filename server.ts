@@ -84,9 +84,18 @@ async function startServer() {
         "Authorization": `Bearer ${apiKey}`,
         "X-API-Key": apiKey,
         "Content-Type": "application/json",
-        "Accept": "application/json",
-        // Crucial: Mimic a real browser to bypass anti-bot challenges
+        "Accept": "application/json, text/plain, */*",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site",
         "Origin": "https://api.ghostpay.com.br",
         "Referer": "https://api.ghostpay.com.br/"
       };
@@ -101,7 +110,6 @@ async function startServer() {
         name: name || "Doador SOS",
         email: email || "contato@exemplo.com",
         cpf: generatedCpf,
-        // Adding nested customer object as some Ghost Pay versions require it
         customer: {
           name: name || "Doador SOS",
           email: email || "contato@exemplo.com",
@@ -113,7 +121,22 @@ async function startServer() {
       };
 
       console.log("Sending request to Ghost Pay:", apiUrl);
-      const response = await axios.post(apiUrl, payload, { headers });
+      
+      let response;
+      try {
+        response = await axios.post(apiUrl, payload, { 
+          headers,
+          timeout: 10000 // 10 seconds timeout
+        });
+      } catch (axiosError: any) {
+        // If we get the HTML challenge again, or any 403/500, we log and handle
+        const errorBody = axiosError.response?.data;
+        if (typeof errorBody === 'string' && errorBody.includes('<head>')) {
+          console.error("CRITICAL: Ghost Pay is still challenging with HTML/Fingerprint.");
+          throw new Error("A API da Ghost Pay bloqueou a conexão do servidor (Firewall). Entre em contato com o suporte deles para liberar o IP do seu servidor.");
+        }
+        throw axiosError;
+      }
 
       console.log("Ghost Pay Raw Response:", JSON.stringify(response.data, null, 2));
 
