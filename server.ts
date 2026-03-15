@@ -151,9 +151,28 @@ async function startServer() {
         throw axiosError;
       }
 
-      console.log("Ghost Pay Raw Response:", JSON.stringify(response.data, null, 2));
+      console.log("Ghost Pay Raw Response:", typeof response.data === 'string' ? "HTML/String Response" : JSON.stringify(response.data, null, 2));
 
       const data = response.data;
+      
+      // Check for HTML challenge in success response (some WAFs return 200 OK with HTML)
+      if (typeof data === 'string' && (data.includes('<head>') || data.includes('FingerprintJS') || data.includes('<html>'))) {
+        console.error("FIREWALL DETECTED in 200 OK response: Sending credentials to frontend for fallback.");
+        return res.status(500).json({ 
+          error: "FIREWALL_BLOCK", 
+          details: "O Firewall da Ghost Pay bloqueou o servidor (200 OK). Tentando conexão direta...",
+          fallback_config: {
+            url: apiUrl,
+            headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "X-API-Key": apiKey,
+              "X-Company-Id": companyId,
+              "Content-Type": "application/json"
+            },
+            payload: payload
+          }
+        });
+      }
       
       // Extensive normalization to catch any possible field name from various gateways
       const qrCode = data.qr_code || 
