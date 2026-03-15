@@ -115,22 +115,36 @@ async function startServer() {
 
       const data = response.data;
       
-      // Extensive normalization to catch any possible field name
-      const qrCode = data.qr_code || data.pix_code || data.copy_paste || data.emv || 
-                     (data.data && (data.data.qr_code || data.data.pix_code || data.data.emv || data.data.qrcode));
+      // Extensive normalization to catch any possible field name from various gateways
+      const qrCode = data.qr_code || 
+                     data.pix_code || 
+                     data.copy_paste || 
+                     data.emv || 
+                     data.payload ||
+                     (data.data && (data.data.qr_code || data.data.pix_code || data.data.emv || data.data.qrcode || data.data.payload)) ||
+                     (data.point_of_interaction && data.point_of_interaction.transaction_data && data.point_of_interaction.transaction_data.qr_code);
       
-      const qrCodeUrl = data.qr_code_url || data.pix_url || data.qrcode_url || data.url ||
-                        (data.data && (data.data.qr_code_url || data.data.qrcode_url || data.data.url));
+      const qrCodeUrl = data.qr_code_url || 
+                        data.pix_url || 
+                        data.qrcode_url || 
+                        data.url ||
+                        data.ticket_url ||
+                        (data.data && (data.data.qr_code_url || data.data.qrcode_url || data.data.url || data.data.ticket_url)) ||
+                        (data.point_of_interaction && data.point_of_interaction.transaction_data && data.point_of_interaction.transaction_data.ticket_url);
 
-      const paymentId = data.payment_id || data.id || data.transaction_id ||
-                        (data.data && (data.data.id || data.data.payment_id));
+      const paymentId = data.payment_id || 
+                        data.id || 
+                        data.transaction_id ||
+                        (data.data && (data.data.id || data.data.payment_id || data.data.transaction_id));
 
       if (!qrCode) {
-        console.error("PIX Code not found in response structure:", data);
+        console.error("PIX Code not found. Full response:", JSON.stringify(data));
+        // If the API returned a message or error field, use it
+        const apiErrorMessage = data.message || data.error || data.details || data.msg || JSON.stringify(data);
         return res.status(500).json({ 
-          error: "API Response Error", 
-          details: "A API respondeu, mas o código PIX não foi encontrado no formato esperado.",
-          raw: data // This will help us see the real error in the browser console
+          error: "Erro na Resposta da API", 
+          details: `A Ghost Pay respondeu, mas não enviou o PIX. Mensagem da API: ${apiErrorMessage}`,
+          raw: data
         });
       }
 
@@ -142,9 +156,19 @@ async function startServer() {
     } catch (error: any) {
       const errorData = error.response?.data || error.message;
       console.error("Ghost Pay API Error:", JSON.stringify(errorData, null, 2));
+      
+      // Extract the most meaningful error message
+      let finalMessage = "Falha na comunicação com a Ghost Pay.";
+      if (error.response?.data) {
+        const d = error.response.data;
+        finalMessage = d.message || d.error || d.details || JSON.stringify(d);
+      } else if (error.message) {
+        finalMessage = error.message;
+      }
+
       res.status(500).json({ 
-        error: "Ghost Pay API Failure",
-        details: typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+        error: "Erro de Conexão API",
+        details: finalMessage,
         raw: errorData
       });
     }
