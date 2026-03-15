@@ -98,7 +98,9 @@ export default function Checkout() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.details || errorData.error || 'Erro ao gerar PIX');
+        const errorMessage = errorData.details || errorData.error || 'Erro ao gerar PIX';
+        const debugInfo = errorData.debug_url ? ` (URL: ${errorData.debug_url})` : '';
+        throw new Error(`${errorMessage}${debugInfo}`);
       }
 
       const data = await response.json();
