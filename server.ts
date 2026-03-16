@@ -89,23 +89,43 @@ async function startServer() {
       };
 
       const generatedCpf = cpf || generateCPF();
+      
+      // The API documentation and error response suggest the payload 
+      // must be wrapped in a 'data' object and use specific field names.
       const payload = {
         amount: Math.round(Number(amount) * 100),
-        payment_method: "pix",
+        paymentMethod: "pix",
         customer: {
           name: name || "Doador SOS",
           email: email || "contato@exemplo.com",
-          document: generatedCpf
+          document: {
+            number: generatedCpf,
+            type: "CPF"
+          }
         },
+        items: [
+          {
+            title: "Doação SOS Minas Gerais",
+            unitPrice: Math.round(Number(amount) * 100),
+            quantity: 1
+          }
+        ],
         description: "Doação SOS Minas Gerais",
         external_id: "order_" + Date.now()
       };
 
-      console.log("Sending request to Ghost Pay:", apiUrl);
+      console.log("Sending request to Ghost Pay v2:", apiUrl);
+      console.log("Payload:", JSON.stringify(payload, null, 2));
       
       let response;
       try {
-        response = await axios.post(apiUrl, payload, { 
+        // Some APIs expect the payload directly, others wrapped in { data: ... }
+        // Based on the documentation provided: -d '{"data": "example"}'
+        // We will try sending it directly first as the error "toUpperCase" 
+        // usually means the field was found but was undefined/null.
+        // Actually, looking at the error response, amount was 0, so it didn't find the fields.
+        // Let's wrap it.
+        response = await axios.post(apiUrl, { data: payload }, { 
           headers,
           timeout: 15000,
           maxRedirects: 5
