@@ -79,59 +79,62 @@ async function startServer() {
       const credentials = Buffer.from(`${apiKey}:${companyId}`).toString("base64");
       const randomIp = `177.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
       
+      const generatedCpf = cpf || generateCPF();
+      const amountInCents = Math.round(Number(amount) * 100);
+      
+      // We'll send a flat payload (no 'data' wrapper) as the documentation suggests.
+      // We include both camelCase and snake_case for maximum compatibility.
+      const transactionPayload = {
+        amount: amountInCents,
+        companyId: companyId,
+        installments: 1,
+        paymentMethod: "PIX",
+        payment_method: "PIX", // snake_case fallback
+        externalRef: "order_" + Date.now(),
+        external_ref: "order_" + Date.now(),
+        description: "Doação SOS Minas Gerais",
+        customer: {
+          name: name || "Doador SOS",
+          email: email || "contato@exemplo.com",
+          phone: "11999999999",
+          document: {
+            number: generatedCpf,
+            type: "CPF"
+          },
+          address: {
+            street: "Rua X",
+            streetNumber: "1",
+            street_number: "1",
+            zipCode: "11050100",
+            zip_code: "11050100",
+            neighborhood: "Centro",
+            city: "Santos",
+            state: "SP",
+            country: "BR"
+          }
+        },
+        items: [
+          {
+            title: "Doação SOS Minas Gerais",
+            unitPrice: amountInCents,
+            unit_price: amountInCents,
+            quantity: 1
+          }
+        ],
+        metadata: {}
+      };
+
       const headers: any = {
         "Authorization": `Basic ${credentials}`,
+        "X-Company-Id": companyId,
+        "X-API-Key": apiKey,
         "Content-Type": "application/json",
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "X-Forwarded-For": randomIp
       };
 
-      const generatedCpf = cpf || generateCPF();
-      const amountInCents = Math.round(Number(amount) * 100);
-      
-      // Many Supabase/Edge Functions based APIs expect the payload wrapped in a 'data' key.
-      // We also use uppercase for PIX and CPF to avoid the 'toUpperCase' error if the API 
-      // is trying to normalize already undefined fields.
-      const transactionPayload = {
-        data: {
-          amount: amountInCents,
-          companyId: companyId,
-          installments: 1,
-          paymentMethod: "PIX",
-          externalRef: "order_" + Date.now(),
-          description: "Doação SOS Minas Gerais",
-          customer: {
-            name: name || "Doador SOS",
-            email: email || "contato@exemplo.com",
-            phone: "11999999999",
-            document: {
-              number: generatedCpf,
-              type: "CPF"
-            },
-            address: {
-              street: "Rua X",
-              streetNumber: "1",
-              complement: "",
-              zipCode: "11050100",
-              neighborhood: "Centro",
-              city: "Santos",
-              state: "SP",
-              country: "BR"
-            }
-          },
-          items: [
-            {
-              title: "Doação SOS Minas Gerais",
-              unitPrice: amountInCents,
-              quantity: 1
-            }
-          ],
-          metadata: {}
-        }
-      };
-
-      console.log("Sending request with 'data' wrapper to Ghost Pay v2:", apiUrl);
+      console.log("Sending request to Ghost Pay v2 (Flat Payload):", apiUrl);
       
       let response;
       try {
@@ -141,6 +144,7 @@ async function startServer() {
         });
       } catch (axiosError: any) {
         const errorBody = axiosError.response?.data;
+        console.error("Ghost Pay API Error Details:", JSON.stringify(errorBody, null, 2));
         // Detect if it's the HTML/Fingerprint challenge
         if (typeof errorBody === 'string' && (errorBody.includes('<head>') || errorBody.includes('FingerprintJS'))) {
           console.error("FIREWALL STILL BLOCKING. Providing detailed guidance.");
