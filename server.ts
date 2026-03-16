@@ -51,25 +51,20 @@ async function startServer() {
 
       const apiKey = process.env.GHOST_PAY_API_KEY;
       const companyId = process.env.GHOST_PAY_COMPANY_ID;
-      let apiUrl = process.env.GHOST_PAY_API_URL || "https://api.ghostpay.com.br/v1/pix";
+      let apiUrl = process.env.GHOST_PAY_API_URL || "https://api.ghostspaysv2.com/functions/v1/transactions";
       
-      // Safety check: If URL looks like a UUID (has hyphens and no dots), it's probably the Company ID
-      if (apiUrl && apiUrl.includes('-') && !apiUrl.includes('.')) {
-        console.warn("GHOST_PAY_API_URL looks like a Company ID. Forcing default Ghost Pay URL.");
-        apiUrl = "https://api.ghostpay.com.br/v1/pix";
-      }
-
-      // Ensure URL has protocol
-      if (apiUrl && !apiUrl.startsWith('http')) {
-        apiUrl = `https://${apiUrl}`;
+      // Safety check for URL
+      if (apiUrl && apiUrl.includes('ghostpay.com.br')) {
+        console.warn("Old API URL detected. Forcing new Ghost Pay v2 URL.");
+        apiUrl = "https://api.ghostspaysv2.com/functions/v1/transactions";
       }
 
       console.log("API Key present:", !!apiKey);
       console.log("Company ID present:", !!companyId);
       console.log("API URL being used:", apiUrl);
 
-      if (!apiKey) {
-        console.warn("GHOST_PAY_API_KEY is missing - using mock mode");
+      if (!apiKey || !companyId) {
+        console.warn("Credentials missing - using mock mode");
         const mockAmount = Number(amount) || 0;
         return res.json({
           success: true,
@@ -80,44 +75,27 @@ async function startServer() {
         });
       }
 
-      const randomIp = `189.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+      // Ghost Pay v2 uses Basic Auth: Base64(SecretKey:CompanyID)
+      const credentials = Buffer.from(`${apiKey}:${companyId}`).toString("base64");
+      const randomIp = `177.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
       
       const headers: any = {
-        "Authorization": `Bearer ${apiKey}`,
-        "X-API-Key": apiKey,
+        "Authorization": `Basic ${credentials}`,
         "Content-Type": "application/json",
-        "Accept": "application/json, text/plain, */*",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
         "X-Forwarded-For": randomIp,
-        "X-Real-IP": randomIp,
-        "Client-IP": randomIp,
-        "Device-Memory": "8",
-        "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": '"Windows"',
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-site",
-        "Origin": "https://api.ghostpay.com.br",
-        "Referer": "https://api.ghostpay.com.br/"
+        "X-Real-IP": randomIp
       };
-
-      if (companyId) {
-        headers["X-Company-Id"] = companyId;
-      }
 
       const generatedCpf = cpf || generateCPF();
       const payload = {
         amount: Math.round(Number(amount) * 100),
-        name: name || "Doador SOS",
-        email: email || "contato@exemplo.com",
-        cpf: generatedCpf,
+        payment_method: "pix",
         customer: {
           name: name || "Doador SOS",
           email: email || "contato@exemplo.com",
-          document: generatedCpf,
-          cpf: generatedCpf
+          document: generatedCpf
         },
         description: "Doação SOS Minas Gerais",
         external_id: "order_" + Date.now()
