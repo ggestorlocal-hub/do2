@@ -81,7 +81,7 @@ async function startServer() {
       
       const headers: any = {
         "Authorization": `Basic ${credentials}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
         "X-Forwarded-For": randomIp,
@@ -90,17 +90,30 @@ async function startServer() {
 
       const generatedCpf = cpf || generateCPF();
       
-      // The API documentation and error response suggest the payload 
-      // must be wrapped in a 'data' object and use specific field names.
-      const payload = {
+      // Constructing a robust payload based on the error response structure
+      const transactionData = {
+        companyId: companyId,
         amount: Math.round(Number(amount) * 100),
         paymentMethod: "pix",
+        description: "Doação SOS Minas Gerais",
+        external_id: "order_" + Date.now(),
         customer: {
           name: name || "Doador SOS",
           email: email || "contato@exemplo.com",
+          phone: "11999999999",
           document: {
             number: generatedCpf,
             type: "CPF"
+          },
+          address: {
+            street: "Rua X",
+            streetNumber: "1",
+            complement: "",
+            zipCode: "11050100",
+            neighborhood: "Centro",
+            city: "Santos",
+            state: "SP",
+            country: "BR"
           }
         },
         items: [
@@ -109,23 +122,20 @@ async function startServer() {
             unitPrice: Math.round(Number(amount) * 100),
             quantity: 1
           }
-        ],
-        description: "Doação SOS Minas Gerais",
-        external_id: "order_" + Date.now()
+        ]
+      };
+
+      // We send the data at the root AND inside a 'data' key to be 100% sure
+      const finalPayload = {
+        ...transactionData,
+        data: transactionData
       };
 
       console.log("Sending request to Ghost Pay v2:", apiUrl);
-      console.log("Payload:", JSON.stringify(payload, null, 2));
       
       let response;
       try {
-        // Some APIs expect the payload directly, others wrapped in { data: ... }
-        // Based on the documentation provided: -d '{"data": "example"}'
-        // We will try sending it directly first as the error "toUpperCase" 
-        // usually means the field was found but was undefined/null.
-        // Actually, looking at the error response, amount was 0, so it didn't find the fields.
-        // Let's wrap it.
-        response = await axios.post(apiUrl, { data: payload }, { 
+        response = await axios.post(apiUrl, finalPayload, { 
           headers,
           timeout: 15000,
           maxRedirects: 5
