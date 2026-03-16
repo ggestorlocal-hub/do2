@@ -90,50 +90,52 @@ async function startServer() {
       const generatedCpf = cpf || generateCPF();
       const amountInCents = Math.round(Number(amount) * 100);
       
-      // This is the EXACT structure expected by Ghost Pay v2 based on documentation
-      // and the error response analysis.
+      // Many Supabase/Edge Functions based APIs expect the payload wrapped in a 'data' key.
+      // We also use uppercase for PIX and CPF to avoid the 'toUpperCase' error if the API 
+      // is trying to normalize already undefined fields.
       const transactionPayload = {
-        amount: amountInCents,
-        paymentMethod: "pix",
-        payment_method: "pix", // Fallback for safety
-        installments: 1,
-        companyId: companyId,
-        external_id: "order_" + Date.now(),
-        description: "Doação SOS Minas Gerais",
-        customer: {
-          name: name || "Doador SOS",
-          email: email || "contato@exemplo.com",
-          phone: "11999999999",
-          document: {
-            number: generatedCpf,
-            type: "CPF"
+        data: {
+          amount: amountInCents,
+          companyId: companyId,
+          installments: 1,
+          paymentMethod: "PIX",
+          externalRef: "order_" + Date.now(),
+          description: "Doação SOS Minas Gerais",
+          customer: {
+            name: name || "Doador SOS",
+            email: email || "contato@exemplo.com",
+            phone: "11999999999",
+            document: {
+              number: generatedCpf,
+              type: "CPF"
+            },
+            address: {
+              street: "Rua X",
+              streetNumber: "1",
+              complement: "",
+              zipCode: "11050100",
+              neighborhood: "Centro",
+              city: "Santos",
+              state: "SP",
+              country: "BR"
+            }
           },
-          address: {
-            street: "Rua X",
-            streetNumber: "1",
-            complement: "",
-            zipCode: "11050100",
-            neighborhood: "Centro",
-            city: "Santos",
-            state: "SP",
-            country: "BR"
-          }
-        },
-        items: [
-          {
-            title: "Doação SOS Minas Gerais",
-            unitPrice: amountInCents,
-            quantity: 1
-          }
-        ]
+          items: [
+            {
+              title: "Doação SOS Minas Gerais",
+              unitPrice: amountInCents,
+              quantity: 1
+            }
+          ],
+          metadata: {}
+        }
       };
 
-      console.log("Sending definitive request to Ghost Pay v2:", apiUrl);
+      console.log("Sending request with 'data' wrapper to Ghost Pay v2:", apiUrl);
       
       let response;
       try {
-        // The documentation explicitly shows wrapping the payload in a "data" key
-        response = await axios.post(apiUrl, { data: transactionPayload }, { 
+        response = await axios.post(apiUrl, transactionPayload, { 
           headers,
           timeout: 15000
         });
@@ -165,7 +167,7 @@ async function startServer() {
               "X-Company-Id": companyId,
               "Content-Type": "application/json"
             },
-            payload: payload
+            payload: transactionPayload
           }
         });
       }
