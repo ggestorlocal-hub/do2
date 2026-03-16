@@ -81,22 +81,25 @@ async function startServer() {
       
       const headers: any = {
         "Authorization": `Basic ${credentials}`,
-        "Content-Type": "application/json; charset=utf-8",
+        "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
-        "X-Forwarded-For": randomIp,
-        "X-Real-IP": randomIp
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "X-Forwarded-For": randomIp
       };
 
       const generatedCpf = cpf || generateCPF();
+      const amountInCents = Math.round(Number(amount) * 100);
       
-      // Constructing a robust payload based on the error response structure
-      const transactionData = {
-        companyId: companyId,
-        amount: Math.round(Number(amount) * 100),
+      // This is the EXACT structure expected by Ghost Pay v2 based on documentation
+      // and the error response analysis.
+      const transactionPayload = {
+        amount: amountInCents,
         paymentMethod: "pix",
-        description: "Doação SOS Minas Gerais",
+        payment_method: "pix", // Fallback for safety
+        installments: 1,
+        companyId: companyId,
         external_id: "order_" + Date.now(),
+        description: "Doação SOS Minas Gerais",
         customer: {
           name: name || "Doador SOS",
           email: email || "contato@exemplo.com",
@@ -119,26 +122,20 @@ async function startServer() {
         items: [
           {
             title: "Doação SOS Minas Gerais",
-            unitPrice: Math.round(Number(amount) * 100),
+            unitPrice: amountInCents,
             quantity: 1
           }
         ]
       };
 
-      // We send the data at the root AND inside a 'data' key to be 100% sure
-      const finalPayload = {
-        ...transactionData,
-        data: transactionData
-      };
-
-      console.log("Sending request to Ghost Pay v2:", apiUrl);
+      console.log("Sending definitive request to Ghost Pay v2:", apiUrl);
       
       let response;
       try {
-        response = await axios.post(apiUrl, finalPayload, { 
+        // The documentation explicitly shows wrapping the payload in a "data" key
+        response = await axios.post(apiUrl, { data: transactionPayload }, { 
           headers,
-          timeout: 15000,
-          maxRedirects: 5
+          timeout: 15000
         });
       } catch (axiosError: any) {
         const errorBody = axiosError.response?.data;
