@@ -182,7 +182,8 @@ async function startServer() {
                      data.copy_paste || 
                      data.emv || 
                      data.payload ||
-                     (data.data && (data.data.qr_code || data.data.pix_code || data.data.emv || data.data.qrcode || data.data.payload)) ||
+                     (data.pix && data.pix.qrcode) ||
+                     (data.data && (data.data.qr_code || data.data.pix_code || data.data.emv || data.data.qrcode || data.data.payload || (data.data.pix && data.data.pix.qrcode))) ||
                      (data.point_of_interaction && data.point_of_interaction.transaction_data && data.point_of_interaction.transaction_data.qr_code);
       
       const qrCodeUrl = data.qr_code_url || 
@@ -190,8 +191,10 @@ async function startServer() {
                         data.qrcode_url || 
                         data.url ||
                         data.ticket_url ||
+                        (data.pix && data.pix.qrcode_url) ||
                         (data.data && (data.data.qr_code_url || data.data.qrcode_url || data.data.url || data.data.ticket_url)) ||
-                        (data.point_of_interaction && data.point_of_interaction.transaction_data && data.point_of_interaction.transaction_data.ticket_url);
+                        (data.point_of_interaction && data.point_of_interaction.transaction_data && data.point_of_interaction.transaction_data.ticket_url) ||
+                        (qrCode ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}` : null);
 
       const paymentId = data.payment_id || 
                         data.id || 
